@@ -1,6 +1,7 @@
 import pandas as pd
 from jinja2 import Template
 from datetime import date
+import sys
 
 # Load GTFS CSVs
 routes = pd.read_csv("metra-gtfs/routes.txt", skipinitialspace=True)
@@ -36,36 +37,50 @@ upw_trips = trips[
 inbound = upw_trips[upw_trips["direction_id"] == 1]
 outbound = upw_trips[upw_trips["direction_id"] == 0]
 
-def build_timetable(trips_df, stop_times_df, stops_df):
-    merged = pd.merge(trips_df[['trip_id']], stop_times_df, on='trip_id')
+# Merge stop_times with trips
+all_stop_times = pd.merge(stop_times, trips[['trip_id', 'direction_id', 'service_id']], on='trip_id')
 
-    if 'stop_sequence' not in merged.columns:
-        raise KeyError("'stop_sequence' column not found in merged DataFrame")
+# Join stop names
+stop_names = stops.set_index("stop_id")["stop_name"].to_dict()
 
-    merged['stop_sequence'] = merged['stop_sequence'].astype(int)
-    merged = merged.sort_values(by=['trip_id', 'stop_sequence'])
+# Get the station name to filter from command-line argument
+if len(sys.argv) != 2:
+    print("Usage: python something.py 'Station Name'")
+    sys.exit(1)
 
-    pivot = merged.pivot(index='stop_id', columns='trip_id', values='departure_time')
+selected_station = sys.argv[1]
+selected_stop_id = stops[stops["stop_name"] == selected_station]["stop_id"].values
+if len(selected_stop_id) == 0:
+    print(f"Station '{selected_station}' not found.")
+    sys.exit(1)
+selected_stop_id = selected_stop_id[0]
 
-    # Preserve stop sequence order
-    stop_order = (
-        merged[['stop_id', 'stop_sequence']]
-        .drop_duplicates()
-        .sort_values('stop_sequence')
-        .drop_duplicates('stop_id', keep='first')
-        .set_index('stop_id')
-    )
-    pivot = pivot.loc[stop_order.index]
+# Find stop_id for Chicago OTC
+chicago_stop_id = stops[stops["stop_name"] == "Chicago OTC"]["stop_id"].values[0]
 
-    # Join stop names
-    stop_names = stops_df.set_index("stop_id")["stop_name"]
-    pivot.index = [stop_names.get(sid, sid) for sid in pivot.index]
+# Filter stop_times to selected station
+filtered_stop_times = all_stop_times[
+    (all_stop_times["stop_id"] == selected_stop_id) &
+    (all_stop_times["service_id"].isin(weekday_services))
+].copy()
+filtered_stop_times = filtered_stop_times.sort_values("departure_time")
 
-    return pivot
+# Add trip_id as tooltip info
+filtered_stop_times["tooltip"] = filtered_stop_times["trip_id"]
 
-# Build both directions
-inbound_table = build_timetable(inbound, stop_times, stops)
-outbound_table = build_timetable(outbound, stop_times, stops)
+# --- Filter outbound to only trips that also depart from Chicago OTC ---
+outbound_trip_ids = all_stop_times[
+    (all_stop_times["stop_id"] == chicago_stop_id) &
+    (all_stop_times["trip_id"].isin(filtered_stop_times["trip_id"]))
+]["trip_id"].unique()
+
+filtered_outbound = filtered_stop_times[
+    (filtered_stop_times["direction_id"] == 0) &
+    (filtered_stop_times["trip_id"].isin(outbound_trip_ids))
+]
+
+# Filter inbound as before
+filtered_inbound = filtered_stop_times[filtered_stop_times["direction_id"] == 1]
 
 # --- HTML rendering ---
 html_template = """
@@ -75,44 +90,55 @@ html_template = """
     <title>{{ title }}</title>
     <style>
         body { font-family: sans-serif; padding: 20px; }
-        table { border-collapse: collapse; width: 100%; font-size: 12px; }
-        th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
-        th { background: #eee; position: sticky; top: 0; }
-        td:first-child { text-align: left; }
+        table { border-collapse: collapse; font-size: 14px; }
+        th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: center; }
+        th { background: #eee; }
+        td:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            background: #333;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-size: 12px;
+            transform: translateX(10px) translateY(-10px);
+        }
     </style>
 </head>
 <body>
 <h2>{{ title }}</h2>
 <table>
-    <tr>
-        <th>Station</th>
-        {% for col in columns %}
-            <th>{{ col }}</th>
-        {% endfor %}
-    </tr>
-    {% for station, row in rows %}
-    <tr>
-        <td>{{ station }}</td>
-        {% for cell in row %}
-            <td>{{ cell or "" }}</td>
-        {% endfor %}
-    </tr>
+    <tr><th>{{ station }}</th></tr>
+    {% for time, tooltip in times %}
+    <tr><td data-tooltip="Trip ID: {{ tooltip }}">{{ time }}</td></tr>
     {% endfor %}
 </table>
 </body>
 </html>
 """
 
-def save_html(df, title, filename):
+def save_vertical_html(df, title, station, filename):
     tmpl = Template(html_template)
     html = tmpl.render(
         title=title,
-        columns=df.columns.tolist(),
-        rows=list(df.iterrows())
+        station=station,
+        times=zip(df["departure_time"], df["tooltip"])
     )
     with open(filename, "w") as f:
         f.write(html)
 
-# Save both timetables
-save_html(inbound_table, "UP-W Inbound Weekday Schedule", "upw_inbound_weekday.html")
-save_html(outbound_table, "UP-W Outbound Weekday Schedule", "upw_outbound_weekday.html")
+# Save both filtered timetables
+save_vertical_html(
+    filtered_inbound,
+    f"UP-W Inbound Departures - {selected_station}",
+    selected_station,
+    "upw_inbound_filtered.html"
+)
+save_vertical_html(
+    filtered_outbound,
+    f"UP-W Outbound Departures from Chicago OTC to {selected_station}",
+    selected_station,
+    "upw_outbound_filtered.html"
+)
+
