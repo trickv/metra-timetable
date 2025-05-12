@@ -60,27 +60,29 @@ chicago_stop_id = stops[stops["stop_name"] == "Chicago OTC"]["stop_id"].values[0
 
 # Filter stop_times to selected station
 filtered_stop_times = all_stop_times[
-    (all_stop_times["stop_id"] == selected_stop_id) &
+    (all_stop_times["stop_id"].isin([selected_stop_id, chicago_stop_id])) &
     (all_stop_times["service_id"].isin(weekday_services))
 ].copy()
-filtered_stop_times = filtered_stop_times.sort_values("departure_time")
 
-# Add trip_id as tooltip info
-filtered_stop_times["tooltip"] = filtered_stop_times["trip_id"]
+# --- Create time pairs ---
+time_pairs = []
+trip_groups = filtered_stop_times.groupby("trip_id")
+for trip_id, group in trip_groups:
+    group = group.sort_values("stop_sequence")
+    stop_ids = group["stop_id"].values
+    if chicago_stop_id in stop_ids and selected_stop_id in stop_ids:
+        chicago_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0]
+        dest_time = group[group["stop_id"] == selected_stop_id]["departure_time"].values[0]
+        direction = group["direction_id"].values[0]
+        time_label = f"{chicago_time} -> {dest_time}"
+        time_pairs.append({"trip_id": trip_id, "time": time_label, "direction": direction})
 
-# --- Filter outbound to only trips that also depart from Chicago OTC ---
-outbound_trip_ids = all_stop_times[
-    (all_stop_times["stop_id"] == chicago_stop_id) &
-    (all_stop_times["trip_id"].isin(filtered_stop_times["trip_id"]))
-]["trip_id"].unique()
+# Convert to DataFrame
+filtered_df = pd.DataFrame(time_pairs)
 
-filtered_outbound = filtered_stop_times[
-    (filtered_stop_times["direction_id"] == 0) &
-    (filtered_stop_times["trip_id"].isin(outbound_trip_ids))
-]
-
-# Filter inbound as before
-filtered_inbound = filtered_stop_times[filtered_stop_times["direction_id"] == 1]
+# Filter inbound and outbound
+filtered_inbound = filtered_df[filtered_df["direction"] == 1]
+filtered_outbound = filtered_df[filtered_df["direction"] == 0]
 
 # --- HTML rendering ---
 html_template = """
@@ -123,7 +125,7 @@ def save_vertical_html(df, title, station, filename):
     html = tmpl.render(
         title=title,
         station=station,
-        times=zip(df["departure_time"], df["tooltip"])
+        times=zip(df["time"], df["trip_id"])
     )
     with open(filename, "w") as f:
         f.write(html)
@@ -141,4 +143,3 @@ save_vertical_html(
     selected_station,
     "upw_outbound_filtered.html"
 )
-
