@@ -74,7 +74,10 @@ for trip_id, group in trip_groups:
         chicago_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0]
         dest_time = group[group["stop_id"] == selected_stop_id]["departure_time"].values[0]
         direction = group["direction_id"].values[0]
-        time_label = f"{chicago_time} -> {dest_time}"
+        if direction == 1:
+            time_label = f"{dest_time} -> {chicago_time}"
+        else:
+            time_label = f"{chicago_time} -> {dest_time}"
         time_pairs.append({"trip_id": trip_id, "time": time_label, "direction": direction})
 
 # Convert to DataFrame
