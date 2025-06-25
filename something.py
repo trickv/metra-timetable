@@ -92,12 +92,34 @@ html_template = """
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title }}</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        table { border-collapse: collapse; font-size: 14px; }
-        th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: center; }
-        th { background: #eee; }
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            margin: 0;
+        }
+        h2 {
+            font-size: 1.4em;
+            text-align: center;
+            word-wrap: break-word;
+            margin-bottom: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            font-size: 16px;
+            width: 80%;
+            margin: 0 auto;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background: #eee;
+        }
         td:hover::after {
             content: attr(data-tooltip);
             position: absolute;
@@ -108,9 +130,11 @@ html_template = """
             white-space: nowrap;
             font-size: 12px;
             transform: translateX(10px) translateY(-10px);
+            z-index: 9999;
         }
     </style>
 </head>
+
 <body>
 <h2>{{ title }}</h2>
 <table>
