@@ -71,8 +71,8 @@ for trip_id, group in trip_groups:
     group = group.sort_values("stop_sequence")
     stop_ids = group["stop_id"].values
     if chicago_stop_id in stop_ids and selected_stop_id in stop_ids:
-        chicago_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0]
-        dest_time = group[group["stop_id"] == selected_stop_id]["departure_time"].values[0]
+        chicago_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0][:-3]
+        dest_time = group[group["stop_id"] == selected_stop_id]["departure_time"].values[0][:-3]
         direction = group["direction_id"].values[0]
         if direction == 1:
             time_label = f"{dest_time} -> {chicago_time}"
