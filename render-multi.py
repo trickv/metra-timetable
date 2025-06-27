@@ -23,107 +23,61 @@ weekday_services = calendar[
     (calendar['end_date'].astype(int) >= int(today_str))
 ]['service_id'].tolist()
 
-# --- STEP 2: Filter UP-W trips on valid weekdays ---
+# --- STEP 2: Filter UP-W trips ---
 if 'service_id' not in trips.columns:
     raise KeyError("'service_id' column not found in trips.txt")
 
-upw_trips = trips[
-    (trips["route_id"] == "UP-W") &
-    (trips["service_id"].isin(weekday_services))
-]
+upw_trips_all = trips[trips["route_id"] == "UP-W"]
+upw_trips_today = upw_trips_all[upw_trips_all["service_id"].isin(weekday_services)]
 
-# Merge stop_times with trips
-all_stop_times = pd.merge(stop_times, trips[['trip_id', 'direction_id', 'service_id']], on='trip_id')
+# Merge all stop_times with full UP-W trips
+all_stop_times = pd.merge(stop_times, upw_trips_all[['trip_id', 'direction_id', 'service_id']], on='trip_id')
+
+# Determine unique stop_ids for UP-W route
+upw_stop_ids = stop_times[stop_times["trip_id"].isin(upw_trips_all["trip_id"])]
+upw_stop_ids = upw_stop_ids["stop_id"].unique()
+
+# Convert to stop names
+upw_stops = stops[stops["stop_id"].isin(upw_stop_ids)].copy()
+upw_stops = upw_stops.sort_values("stop_sequence") if "stop_sequence" in upw_stops.columns else upw_stops
 
 # Find stop_id for Chicago OTC
 chicago_stop_id = stops[stops["stop_name"] == "Chicago OTC"]["stop_id"].values[0]
 
-# --- Create time pairs ---
-time_pairs = []
-trip_groups = all_stop_times[all_stop_times["service_id"].isin(weekday_services)].groupby("trip_id")
-for trip_id, group in trip_groups:
+# Filter stop_times for today and Chicago OTC + any destination stop on UP-W
+filtered_stop_times = stop_times[stop_times["trip_id"].isin(upw_trips_today["trip_id"])]
+filtered_stop_times = pd.merge(filtered_stop_times, upw_trips_today[['trip_id', 'direction_id']], on='trip_id')
+
+# Group by trip and extract times
+time_rows = []
+for trip_id, group in filtered_stop_times.groupby("trip_id"):
     group = group.sort_values("stop_sequence")
     stop_ids = group["stop_id"].values
     if chicago_stop_id in stop_ids:
         for dest_stop_id in stop_ids:
-            if dest_stop_id == chicago_stop_id:
-                continue
-            chicago_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0][:-3]
-            dest_time = group[group["stop_id"] == dest_stop_id]["departure_time"].values[0][:-3]
-            direction = group["direction_id"].values[0]
-            time_label = f"{chicago_time} -> {dest_time}" if direction == 0 else f"{dest_time} -> {chicago_time}"
-            stop_name = stops[stops["stop_id"] == dest_stop_id]["stop_name"].values[0]
-            time_pairs.append({"trip_id": trip_id, "time": time_label, "direction": direction, "station": stop_name})
+            if dest_stop_id != chicago_stop_id:
+                direction = group["direction_id"].iloc[0]
+                try:
+                    start_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0][:-3]
+                    end_time = group[group["stop_id"] == dest_stop_id]["departure_time"].values[0][:-3]
+                    time_rows.append({
+                        "trip_id": trip_id,
+                        "origin": chicago_stop_id if direction == 0 else dest_stop_id,
+                        "destination": dest_stop_id if direction == 0 else chicago_stop_id,
+                        "time": f"{start_time} -> {end_time}",
+                        "direction": direction
+                    })
+                except IndexError:
+                    continue
 
 # Convert to DataFrame
-schedule_df = pd.DataFrame(time_pairs)
+schedule_df = pd.DataFrame(time_rows)
+schedule_df = pd.merge(schedule_df, stops[['stop_id', 'stop_name']], left_on='destination', right_on='stop_id', how='left')
+schedule_df.rename(columns={"stop_name": "station_name"}, inplace=True)
 
-# --- HTML rendering with JavaScript filtering ---
-html_template = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>UP-W Schedule</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; margin: 0; }
-        h2 { font-size: 1.4em; text-align: center; margin-bottom: 20px; }
-        select { font-size: 16px; margin: 0 auto 20px auto; display: block; }
-        table { border-collapse: collapse; font-size: 16px; width: 80%; margin: 0 auto; }
-        th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
-        th { background: #eee; }
-        td:hover::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            background: #333;
-            color: #fff;
-            padding: 2px 6px;
-            border-radius: 4px;
-            white-space: nowrap;
-            font-size: 12px;
-            transform: translateX(10px) translateY(-10px);
-            z-index: 9999;
-        }
-    </style>
-</head>
-<body>
-<h2>UP-W Departures</h2>
-<label for="stationPicker">Select a Station:</label>
-<select id="stationPicker" onchange="updateTable()">
-    <option value="">-- Choose a Station --</option>
-    {% for station in stations %}<option value="{{ station }}">{{ station }}</option>{% endfor %}
-</select>
-<table id="scheduleTable">
-    <thead><tr><th>Departure Window</th></tr></thead>
-    <tbody></tbody>
-</table>
-<script>
-const schedule = {{ schedule_json | safe }};
-function updateTable() {
-    const station = document.getElementById('stationPicker').value;
-    const tbody = document.querySelector('#scheduleTable tbody');
-    tbody.innerHTML = '';
-    if (!station) return;
-    const rows = schedule.filter(r => r.station === station);
-    rows.forEach(row => {
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.textContent = row.time;
-        td.setAttribute('data-tooltip', `Trip ID: ${row.trip_id}`);
-        tr.appendChild(td);
-        tbody.appendChild(tr);
-    });
-}
-</script>
-</body>
-</html>
-"""
+# Save JSON for frontend use
+schedule_df.to_json("upw_schedule.json", orient="records")
 
-from jinja2 import Template
-html = Template(html_template).render(
-    schedule_json=schedule_df.to_dict(orient="records"),
-    stations=sorted(schedule_df["station"].unique())
-)
-
-with open("upw_schedule_interactive.html", "w") as f:
-    f.write(html)
+# Save station list as well
+station_list = stops[stops["stop_id"].isin(upw_stop_ids)][["stop_id", "stop_name"]].drop_duplicates()
+station_list.to_json("upw_stations.json", orient="records")
