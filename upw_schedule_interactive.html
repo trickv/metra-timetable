@@ -1,0 +1,85 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UP-W Schedule</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        select, label { font-size: 16px; margin: 10px 0; }
+        table { border-collapse: collapse; font-size: 16px; width: 80%; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+        th { background: #eee; }
+        td:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            background: #333;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-size: 12px;
+            transform: translateX(10px) translateY(-10px);
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+<h2>UP-W Train Departures</h2>
+<label for="stationSelect">Select station:</label>
+<select id="stationSelect"></select>
+<label><input type="radio" name="dir" value="1" checked> To Chicago</label>
+<label><input type="radio" name="dir" value="0"> From Chicago</label>
+<table id="scheduleTable">
+    <thead><tr><th>Departure Window</th></tr></thead>
+    <tbody></tbody>
+</table>
+<script>
+    let data;
+    const select = document.getElementById("stationSelect");
+    const table = document.getElementById("scheduleTable").querySelector("tbody");
+
+    function loadData() {
+        fetch("upw_schedule_data.json")
+            .then(resp => resp.json())
+            .then(json => {
+                data = json;
+                const stations = new Set();
+                json.forEach(t => {
+                    if (t.direction == 1) stations.add(t.from);
+                    else stations.add(t.to);
+                });
+                [...stations].sort().forEach(name => {
+                    const opt = document.createElement("option");
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+                const saved = localStorage.getItem("upw_station");
+                if (saved) select.value = saved;
+                updateTable();
+            });
+    }
+
+    function updateTable() {
+        const station = select.value;
+        const dir = document.querySelector("input[name=dir]:checked").value;
+        localStorage.setItem("upw_station", station);
+        table.innerHTML = "";
+        const filtered = data.filter(d => (d.direction == dir && ((dir == "1" && d.from == station) || (dir == "0" && d.to == station))));
+        filtered.forEach(entry => {
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+            cell.textContent = entry.time;
+            cell.setAttribute("data-tooltip", `Trip ID: ${entry.trip_id}`);
+            row.appendChild(cell);
+            table.appendChild(row);
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", loadData);
+    select.addEventListener("change", updateTable);
+    document.querySelectorAll("input[name=dir]").forEach(el => el.addEventListener("change", updateTable));
+</script>
+</body>
+</html>
