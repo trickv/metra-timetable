@@ -58,26 +58,29 @@ for trip_id, group in filtered_stop_times.groupby("trip_id"):
             if dest_stop_id != chicago_stop_id:
                 direction = group["direction_id"].iloc[0]
                 try:
-                    start_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0][:-3]
-                    end_time = group[group["stop_id"] == dest_stop_id]["departure_time"].values[0][:-3]
+                    chicago_time = group[group["stop_id"] == chicago_stop_id]["departure_time"].values[0][:-3]
+                    dest_time = group[group["stop_id"] == dest_stop_id]["departure_time"].values[0][:-3]
+                    
+                    # Get stop names
+                    dest_stop_name = stops[stops["stop_id"] == dest_stop_id]["stop_name"].values[0]
+                    chicago_stop_name = stops[stops["stop_id"] == chicago_stop_id]["stop_name"].values[0]
+                    
+                    # Create start->end time format
+                    if direction == 1:  # To Chicago
+                        time_display = f"{dest_time} -> {chicago_time}"
+                    else:  # From Chicago
+                        time_display = f"{chicago_time} -> {dest_time}"
+                    
                     time_rows.append({
                         "trip_id": trip_id,
-                        "origin": chicago_stop_id if direction == 0 else dest_stop_id,
-                        "destination": dest_stop_id if direction == 0 else chicago_stop_id,
-                        "time": f"{start_time} -> {end_time}",
+                        "from": dest_stop_name if direction == 1 else chicago_stop_name,
+                        "to": chicago_stop_name if direction == 1 else dest_stop_name,
+                        "time": time_display,
                         "direction": direction
                     })
                 except IndexError:
                     continue
 
-# Convert to DataFrame
+# Convert to DataFrame and save for frontend use
 schedule_df = pd.DataFrame(time_rows)
-schedule_df = pd.merge(schedule_df, stops[['stop_id', 'stop_name']], left_on='destination', right_on='stop_id', how='left')
-schedule_df.rename(columns={"stop_name": "station_name"}, inplace=True)
-
-# Save JSON for frontend use
-schedule_df.to_json("upw_schedule.json", orient="records")
-
-# Save station list as well
-station_list = stops[stops["stop_id"].isin(upw_stop_ids)][["stop_id", "stop_name"]].drop_duplicates()
-station_list.to_json("upw_stations.json", orient="records")
+schedule_df.to_json("upw_schedule_data.json", orient="records")
