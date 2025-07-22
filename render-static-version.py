@@ -120,6 +120,10 @@ html_template = """
         th {
             background: #eee;
         }
+        .departed {
+            color: #999;
+            background-color: #f5f5f5;
+        }
         td:hover::after {
             content: attr(data-tooltip);
             position: absolute;
@@ -140,9 +144,34 @@ html_template = """
 <table>
     <tr><th>{{ station }}</th></tr>
     {% for time, tooltip in times %}
-    <tr><td data-tooltip="Trip ID: {{ tooltip }}">{{ time }}</td></tr>
+    <tr><td data-tooltip="Trip ID: {{ tooltip }}" data-departure-time="{{ time.split(' -> ')[0] }}">{{ time }}</td></tr>
     {% endfor %}
 </table>
+
+<script>
+function updateDepartedStatus() {
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    document.querySelectorAll("td[data-departure-time]").forEach(function(cell) {
+        const departureTimeStr = cell.getAttribute("data-departure-time");
+        const [hours, minutes] = departureTimeStr.split(':').map(Number);
+        const departureTime = hours * 60 + minutes;
+        
+        if (currentTime > departureTime) {
+            cell.classList.add("departed");
+        } else {
+            cell.classList.remove("departed");
+        }
+    });
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    updateDepartedStatus();
+    // Update departure status every minute
+    setInterval(updateDepartedStatus, 60000);
+});
+</script>
 </body>
 </html>
 """
