@@ -98,7 +98,22 @@ html_template = """
         body {
             font-family: sans-serif;
             padding: 20px;
+            padding-top: 120px;
             margin: 0;
+        }
+        .header-container {
+            position: sticky;
+            top: 0;
+            background-color: white;
+            padding: 15px 20px;
+            border-bottom: 2px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+            margin: -20px -20px 20px -20px;
+        }
+        .header-container h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
         }
         h2 {
             font-size: 1.4em;
@@ -124,6 +139,28 @@ html_template = """
             color: #999;
             background-color: #f5f5f5;
         }
+        #countdown {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin: 15px auto;
+            padding: 10px;
+            background-color: #f0f8ff;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            color: #2e7d32;
+            width: 80%;
+        }
+        #countdown.urgent {
+            background-color: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+        #countdown.very-urgent {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
         td:hover::after {
             content: attr(data-tooltip);
             position: absolute;
@@ -140,7 +177,10 @@ html_template = """
 </head>
 
 <body>
-<h2>{{ title }}</h2>
+<div class="header-container">
+    <h2>{{ title }}</h2>
+    <div id="countdown">Loading next departure...</div>
+</div>
 <table>
     <tr><th>{{ station }}</th></tr>
     {% for time, tooltip in times %}
@@ -166,10 +206,62 @@ function updateDepartedStatus() {
     });
 }
 
+function updateCountdown() {
+    const countdownEl = document.getElementById("countdown");
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes() + (now.getSeconds() / 60);
+    
+    // Find all non-departed trains and get their departure times
+    const futureDepartures = [];
+    document.querySelectorAll("td[data-departure-time]:not(.departed)").forEach(function(cell) {
+        const departureTimeStr = cell.getAttribute("data-departure-time");
+        const [hours, minutes] = departureTimeStr.split(':').map(Number);
+        const departureTime = hours * 60 + minutes;
+        
+        if (departureTime > currentTime) {
+            futureDepartures.push({
+                time: departureTime,
+                timeStr: departureTimeStr
+            });
+        }
+    });
+    
+    if (futureDepartures.length === 0) {
+        countdownEl.textContent = "No more departures today";
+        countdownEl.className = "";
+        return;
+    }
+    
+    // Find the next departure
+    futureDepartures.sort((a, b) => a.time - b.time);
+    const nextDeparture = futureDepartures[0];
+    const minutesUntil = nextDeparture.time - currentTime;
+    const totalSeconds = Math.floor(minutesUntil * 60);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    // Update styling based on urgency
+    countdownEl.className = "";
+    if (minutesUntil <= 2) {
+        countdownEl.className = "very-urgent";
+    } else if (minutesUntil <= 5) {
+        countdownEl.className = "urgent";
+    }
+    
+    if (minutes > 0) {
+        countdownEl.textContent = `Next departure: ${nextDeparture.timeStr} (in ${minutes}m ${seconds}s)`;
+    } else {
+        countdownEl.textContent = `Next departure: ${nextDeparture.timeStr} (in ${seconds}s)`;
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function() {
     updateDepartedStatus();
+    updateCountdown();
     // Update departure status every minute
     setInterval(updateDepartedStatus, 60000);
+    // Update countdown every second
+    setInterval(updateCountdown, 1000);
 });
 </script>
 </body>
