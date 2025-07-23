@@ -46,6 +46,22 @@
             border-color: #dc3545;
             color: #721c24;
         }
+        .train-badge {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 80%;
+            font-weight: bold;
+            margin-right: 10px;
+            min-width: 20px;
+            text-align: center;
+        }
+        .schedule-content {
+            display: flex;
+            align-items: center;
+        }
         td:hover::after {
             content: attr(data-tooltip);
             position: absolute;
@@ -111,7 +127,30 @@
         filtered.forEach(entry => {
             const row = document.createElement("tr");
             const cell = document.createElement("td");
-            cell.textContent = entry.time;
+            
+            // Extract train number from time string
+            const trainMatch = entry.time.match(/\(Train (\d+)\)/);
+            const trainNumber = trainMatch ? trainMatch[1] : '';
+            const timeWithoutTrain = entry.time.replace(/\s*\(Train \d+\)/, '');
+            
+            // Create content container
+            const contentDiv = document.createElement("div");
+            contentDiv.className = "schedule-content";
+            
+            // Create train badge
+            if (trainNumber) {
+                const badge = document.createElement("span");
+                badge.className = "train-badge";
+                badge.textContent = trainNumber;
+                contentDiv.appendChild(badge);
+            }
+            
+            // Create time text
+            const timeSpan = document.createElement("span");
+            timeSpan.textContent = timeWithoutTrain;
+            contentDiv.appendChild(timeSpan);
+            
+            cell.appendChild(contentDiv);
             cell.setAttribute("data-tooltip", `Trip ID: ${entry.trip_id}`);
             cell.setAttribute("data-departure-time", entry.time.split(' -> ')[0]);
             
