@@ -20,6 +20,7 @@ This is a Metra timetable generator that processes GTFS (General Transit Feed Sp
 
 ## Key Components
 
+- **bootstrap.sh / bootstrap.bat**: Automated setup scripts that create virtual environment and install dependencies (Linux/Mac and Windows)
 - **get-schedule.sh**: Downloads and extracts the latest GTFS schedule data from Metra's API
 - **render-all-lines.py**: Generates JSON schedule data for all Metra lines (recommended)
 - **render-multi.py**: Legacy UP-W specific data generator
@@ -27,7 +28,16 @@ This is a Metra timetable generator that processes GTFS (General Transit Feed Sp
 
 ## Common Commands
 
-### Setup Environment
+### Quick Setup (Recommended)
+```bash
+# Linux/Mac
+./bootstrap.sh
+
+# Windows
+bootstrap.bat
+```
+
+### Manual Setup Environment
 ```bash
 # Create and activate virtual environment
 python -m venv venv
