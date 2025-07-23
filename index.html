@@ -141,7 +141,44 @@
             else stations.add(t.to);
         });
         
-        [...stations].sort().forEach(name => {
+        // Sort stations by their position along the line using time data
+        const stationsArray = [...stations];
+        const stationPositions = new Map();
+        
+        // Get a representative trip for each direction to establish station order
+        const representativeTrip = data.find(t => t.route_id === selectedLine && t.direction == 1);
+        if (representativeTrip) {
+            // Find all stations on this trip in order
+            const tripStations = data
+                .filter(t => t.route_id === selectedLine && t.trip_id === representativeTrip.trip_id)
+                .sort((a, b) => {
+                    const timeA = a.time.split(' -> ')[0];
+                    const timeB = b.time.split(' -> ')[0];
+                    return timeA.localeCompare(timeB);
+                });
+            
+            tripStations.forEach((entry, index) => {
+                stationPositions.set(entry.from, index);
+            });
+        }
+        
+        // Sort stations by their position, falling back to alphabetical for unmapped stations
+        stationsArray.sort((a, b) => {
+            const posA = stationPositions.get(a);
+            const posB = stationPositions.get(b);
+            
+            if (posA !== undefined && posB !== undefined) {
+                return posA - posB;
+            } else if (posA !== undefined) {
+                return -1;
+            } else if (posB !== undefined) {
+                return 1;
+            } else {
+                return a.localeCompare(b);
+            }
+        });
+        
+        stationsArray.forEach(name => {
             const opt = document.createElement("option");
             opt.value = name;
             opt.textContent = name;
