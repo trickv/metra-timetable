@@ -10,7 +10,6 @@ This is a Metra timetable generator that processes GTFS (General Transit Feed Sp
 
 - **get-schedule.sh**: Downloads and extracts the latest GTFS schedule data from Metra's API
 - **render-multi.py**: Generates JSON schedule data for frontend consumption, focusing on Chicago OTC as the central hub
-- **render-static-version.py**: Creates filtered HTML timetables for specific stations with inbound/outbound departures
 - **requirements.txt**: Python dependencies (jinja2, pandas)
 
 ## Common Commands
@@ -35,9 +34,6 @@ pip install -r requirements.txt
 # Generate JSON schedule data
 python render-multi.py
 
-# Generate HTML timetable for specific station
-python render-static-version.py "Station Name"
-
 # Start development web server (try ports 8000, 8001, 8002, etc. until one works)
 python -m http.server 8000
 ```
@@ -47,12 +43,12 @@ python -m http.server 8000
 The project follows a data pipeline approach:
 
 1. **Data Acquisition**: `get-schedule.sh` fetches GTFS data from Metra and extracts it to `metra-gtfs/`
-2. **Data Processing**: Both Python scripts read GTFS CSV files (routes.txt, trips.txt, stop_times.txt, stops.txt, calendar.txt) using pandas
-3. **Schedule Filtering**: Scripts filter for UP-W route, weekday services, and specific direction/station combinations
-4. **Output Generation**: Creates either JSON data files or HTML timetables with Jinja2 templates
+2. **Data Processing**: The Python script reads GTFS CSV files (routes.txt, trips.txt, stop_times.txt, stops.txt, calendar.txt) using pandas
+3. **Schedule Filtering**: Script filters for UP-W route, weekday services, and specific direction/station combinations
+4. **Output Generation**: Creates JSON data files with Jinja2 templates
 
 ### Key Data Flow
-- Both scripts identify active weekday services based on current date
+- Script identifies active weekday services based on current date
 - UP-W route trips are filtered by service_id and direction_id
 - Chicago OTC serves as the central hub for all schedule calculations
 - Times are formatted by removing seconds (`:XX` suffix)
@@ -61,5 +57,3 @@ The project follows a data pipeline approach:
 - `metra-gtfs/`: Contains downloaded GTFS CSV files
 - `upw_schedule.json`: Generated schedule data for frontend
 - `upw_stations.json`: Station list for frontend
-- `upw_inbound_filtered.html`: Inbound departures for specific station
-- `upw_outbound_filtered.html`: Outbound departures for specific station
