@@ -37,6 +37,9 @@ python render-multi.py
 
 # Generate HTML timetable for specific station
 python render-static-version.py "Station Name"
+
+# Start development web server (try ports 8000, 8001, 8002, etc. until one works)
+python -m http.server 8000
 ```
 
 ## Architecture
