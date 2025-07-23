@@ -9,7 +9,7 @@ This is a Metra timetable generator that processes GTFS (General Transit Feed Sp
 ## Available Applications
 
 ### 1. Multi-Line Version (Recommended)
-- **Frontend**: `metra-interactive.html` - Supports all 11 Metra lines with line selection dropdown
+- **Frontend**: `index.html` - Supports all 11 Metra lines with line selection dropdown
 - **Data Generator**: `render-all-lines.py` - Processes all available Metra routes
 - **Data Files**: `metra_all_schedule_data.json`, `metra_routes.json`
 
