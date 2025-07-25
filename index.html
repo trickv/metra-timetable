@@ -325,8 +325,16 @@
     // Update departure status every minute
     setInterval(updateDepartedStatus, 60000);
     
-    // Update countdown every second
-    setInterval(updateCountdown, 1000);
+    // Update countdown synced to system clock
+    function scheduleCountdownUpdate() {
+        const now = new Date();
+        const msUntilNextSecond = 1000 - now.getMilliseconds();
+        setTimeout(() => {
+            updateCountdown();
+            setInterval(updateCountdown, 1000);
+        }, msUntilNextSecond);
+    }
+    scheduleCountdownUpdate();
 </script>
 </body>
 </html>
