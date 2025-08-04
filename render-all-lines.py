@@ -8,7 +8,7 @@ def parse_train_number(route_id, trip_id):
     patterns = {
         'UP-W': r'UW(\d+)',
         'UP-N': r'UN(\d+)', 
-        'UP-NW': r'UPN(\d+)',
+        'UP-NW': r'UNW(\d+)',
         'BNSF': r'BN(\d+)',
         'MD-W': r'MW(\d+)',
         'MD-N': r'MN(\d+)',
