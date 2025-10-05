@@ -11,7 +11,7 @@ This is a Metra timetable generator that processes GTFS (General Transit Feed Sp
 ### 1. Multi-Line Version (Recommended)
 - **Frontend**: `index.html` - Supports all 11 Metra lines with line selection dropdown
 - **Data Generator**: `render-all-lines.py` - Processes all available Metra routes
-- **Data Files**: `metra_all_schedule_data.json`, `metra_routes.json`
+- **Data Files**: `metra_all_schedule_data.json`, `metra_routes.json`, `metra_metadata.json`
 
 ### 2. UP-W Specific Version (Legacy)
 - **Frontend**: `upw_schedule_interactive.html` - UP-W line only interface
@@ -85,6 +85,7 @@ The project follows a data pipeline approach:
 - Multi-line version:
   - `metra_all_schedule_data.json`: Schedule data for all Metra lines
   - `metra_routes.json`: Route information with colors and names
+  - `metra_metadata.json`: Metadata about data generation and schedule validity dates
 - UP-W specific version (legacy):
   - `upw_schedule_data.json`: UP-W schedule data only
 

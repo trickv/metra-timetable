@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Metra Schedule</title>
+    <title>Metra Timetable</title>
     <style>
         body { font-family: sans-serif; padding: 20px; padding-top: 140px; }
         .header-container {
@@ -73,6 +73,81 @@
             transform: translateX(10px) translateY(-10px);
             z-index: 9999;
         }
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            font-size: 14px;
+            color: #666;
+        }
+        footer a {
+            color: #666;
+            text-decoration: none;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .modal-content h3 {
+            margin-top: 0;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .about-links {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .about-links button, .about-links a {
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .about-links button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+        .about-links button:hover {
+            background-color: #45a049;
+        }
+        .about-links a {
+            background-color: #2196F3;
+            color: white;
+        }
+        .about-links a:hover {
+            background-color: #0b7dda;
+        }
     </style>
 </head>
 <body>
@@ -92,6 +167,26 @@
     <thead><tr><th>Departure Window</th></tr></thead>
     <tbody></tbody>
 </table>
+
+<footer>
+    <a href="#" id="aboutLink">About</a>
+</footer>
+
+<div id="aboutModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3>About Metra Timetable</h3>
+        <p>I built this tool because I wanted a simple, fast way to check Metra train times without dealing with the clunky official app or website. As someone who takes the train regularly, I just wanted to see when my next train is leaving - no fuss, no ads, just the information I need.</p>
+        <div id="scheduleInfo" style="margin: 15px 0; padding: 10px; background-color: #f5f5f5; border-radius: 5px; font-size: 13px;">
+            <strong>Schedule Information:</strong>
+            <div id="metadataDetails">Loading...</div>
+        </div>
+        <div class="about-links">
+            <button id="shareButton">Share with friends</button>
+            <a href="https://trick.vanstaveren.us/" target="_blank" rel="noopener">Visit my homepage</a>
+        </div>
+    </div>
+</div>
 <script>
     let data;
     let routesData;
@@ -99,13 +194,17 @@
     const stationSelect = document.getElementById("stationSelect");
     const table = document.getElementById("scheduleTable").querySelector("tbody");
 
+    let metadata = null;
+
     function loadData() {
         Promise.all([
             fetch("metra_all_schedule_data.json").then(resp => resp.json()),
-            fetch("metra_routes.json").then(resp => resp.json())
-        ]).then(([scheduleData, routes]) => {
+            fetch("metra_routes.json").then(resp => resp.json()),
+            fetch("metra_metadata.json").then(resp => resp.json()).catch(() => null)
+        ]).then(([scheduleData, routes, meta]) => {
             data = scheduleData;
             routesData = routes;
+            metadata = meta;
             
             // Populate line selector
             routes.forEach(route => {
@@ -335,6 +434,63 @@
         }, msUntilNextSecond);
     }
     scheduleCountdownUpdate();
+
+    // About modal functionality
+    const modal = document.getElementById("aboutModal");
+    const aboutLink = document.getElementById("aboutLink");
+    const closeBtn = document.querySelector(".close");
+    const shareButton = document.getElementById("shareButton");
+
+    function updateMetadataDisplay() {
+        const metadataDiv = document.getElementById("metadataDetails");
+        if (metadata) {
+            const gtfsDate = metadata.gtfs_downloaded_at ? new Date(metadata.gtfs_downloaded_at).toLocaleDateString() : 'Unknown';
+            const validFrom = metadata.schedule_valid_from || 'Unknown';
+            const validUntil = metadata.schedule_valid_until || 'Unknown';
+
+            metadataDiv.innerHTML = `
+                <div style="margin-top: 5px;">GTFS data downloaded: ${gtfsDate}</div>
+                <div>Schedule valid: ${validFrom} to ${validUntil}</div>
+            `;
+        } else {
+            metadataDiv.innerHTML = '<div style="margin-top: 5px;">Metadata not available</div>';
+        }
+    }
+
+    aboutLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        updateMetadataDisplay();
+        modal.style.display = "block";
+    });
+
+    closeBtn.addEventListener("click", () => {
+        modal.style.display = "none";
+    });
+
+    window.addEventListener("click", (e) => {
+        if (e.target === modal) {
+            modal.style.display = "none";
+        }
+    });
+
+    shareButton.addEventListener("click", async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Metra Timetable',
+                    text: 'Check out this simple Metra timetable app!',
+                    url: window.location.href
+                });
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('Error sharing:', err);
+                }
+            }
+        } else {
+            // Fallback for browsers that don't support Web Share API
+            alert('Sharing is not supported on this browser. Copy the URL to share: ' + window.location.href);
+        }
+    });
 </script>
 <script data-goatcounter="https://stats.home.v9n.us/count"
         async src="//stats.home.v9n.us/count.js"></script>

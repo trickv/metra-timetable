@@ -1,7 +1,9 @@
 import pandas as pd
 from jinja2 import Template
-from datetime import date
+from datetime import date, datetime
 import re
+import json
+import os
 
 def parse_train_number(route_id, trip_id):
     """Parse train number from trip_id based on route patterns"""
@@ -135,12 +137,35 @@ schedule_df = pd.DataFrame(all_schedule_data)
 if not schedule_df.empty:
     # Save combined data
     schedule_df.to_json("metra_all_schedule_data.json", orient="records")
-    
+
     # Also save route information for frontend
     routes_info = routes[['route_id', 'route_short_name', 'route_long_name', 'route_color']].to_dict('records')
     pd.DataFrame(routes_info).to_json("metra_routes.json", orient="records")
-    
+
+    # Create metadata file with generation time and schedule validity
+    gtfs_zip_path = "metra-gtfs/schedule.zip"
+    gtfs_mtime = datetime.fromtimestamp(os.path.getmtime(gtfs_zip_path)) if os.path.exists(gtfs_zip_path) else None
+
+    # Get schedule validity range from calendar
+    start_dates = calendar['start_date'].astype(str).tolist()
+    end_dates = calendar['end_date'].astype(str).tolist()
+    earliest_start = min(start_dates)
+    latest_end = max(end_dates)
+
+    metadata = {
+        "generated_at": datetime.now().isoformat(),
+        "gtfs_downloaded_at": gtfs_mtime.isoformat() if gtfs_mtime else None,
+        "schedule_valid_from": f"{earliest_start[:4]}-{earliest_start[4:6]}-{earliest_start[6:]}",
+        "schedule_valid_until": f"{latest_end[:4]}-{latest_end[4:6]}-{latest_end[6:]}",
+        "total_routes": int(schedule_df['route_id'].nunique()),
+        "total_entries": len(all_schedule_data)
+    }
+
+    with open("metra_metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2)
+
     print("Data saved to metra_all_schedule_data.json and metra_routes.json")
+    print(f"Metadata saved to metra_metadata.json")
     print(f"Routes processed: {schedule_df['route_id'].nunique()}")
     print(f"Sample routes: {schedule_df['route_id'].unique()[:5]}")
 else:
