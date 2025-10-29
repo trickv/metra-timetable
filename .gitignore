@@ -1,3 +1,4 @@
 *.json
 venv
 metra-gtfs
+__pycache__/
