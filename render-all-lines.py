@@ -45,42 +45,56 @@ calendar = pd.read_csv("metra-gtfs/calendar.txt", skipinitialspace=True)
 # --- STEP 1: Find active services for each schedule type ---
 today_str = date.today().strftime("%Y%m%d")
 
-# Define service types
-service_types = {
-    'weekday': {
-        'filters': {
-            'monday': 1, 'tuesday': 1, 'wednesday': 1,
-            'thursday': 1, 'friday': 1, 'saturday': 0, 'sunday': 0
-        }
-    },
-    'saturday': {
-        'filters': {
-            'monday': 0, 'tuesday': 0, 'wednesday': 0,
-            'thursday': 0, 'friday': 0, 'saturday': 1, 'sunday': 0
-        }
-    },
-    'sunday': {
-        'filters': {
-            'monday': 0, 'tuesday': 0, 'wednesday': 0,
-            'thursday': 0, 'friday': 0, 'saturday': 0, 'sunday': 1
-        }
-    }
-}
-
 def get_services_for_type(service_type_name):
-    """Get service IDs for a given schedule type"""
-    filters = service_types[service_type_name]['filters']
-    mask = (
-        (calendar['monday'].astype(int) == filters['monday']) &
-        (calendar['tuesday'].astype(int) == filters['tuesday']) &
-        (calendar['wednesday'].astype(int) == filters['wednesday']) &
-        (calendar['thursday'].astype(int) == filters['thursday']) &
-        (calendar['friday'].astype(int) == filters['friday']) &
-        (calendar['saturday'].astype(int) == filters['saturday']) &
-        (calendar['sunday'].astype(int) == filters['sunday']) &
-        (calendar['start_date'].astype(int) <= int(today_str)) &
-        (calendar['end_date'].astype(int) >= int(today_str))
-    )
+    """Get service IDs for a given schedule type
+
+    Logic:
+    - Weekday: Services that run Monday-Friday (regardless of weekend operation)
+    - Saturday: Services that run on Saturday (regardless of Sunday operation)
+    - Sunday: Services that run on Sunday (regardless of Saturday operation)
+    """
+    today_str_int = int(today_str)
+
+    if service_type_name == 'weekday':
+        # Services that operate on all weekdays and NOT on weekends
+        mask = (
+            (calendar['monday'].astype(int) == 1) &
+            (calendar['tuesday'].astype(int) == 1) &
+            (calendar['wednesday'].astype(int) == 1) &
+            (calendar['thursday'].astype(int) == 1) &
+            (calendar['friday'].astype(int) == 1) &
+            (calendar['saturday'].astype(int) == 0) &
+            (calendar['sunday'].astype(int) == 0) &
+            (calendar['start_date'].astype(int) <= today_str_int) &
+            (calendar['end_date'].astype(int) >= today_str_int)
+        )
+    elif service_type_name == 'saturday':
+        # Services that operate on Saturday (may also run Sunday, but NOT weekdays)
+        mask = (
+            (calendar['monday'].astype(int) == 0) &
+            (calendar['tuesday'].astype(int) == 0) &
+            (calendar['wednesday'].astype(int) == 0) &
+            (calendar['thursday'].astype(int) == 0) &
+            (calendar['friday'].astype(int) == 0) &
+            (calendar['saturday'].astype(int) == 1) &
+            (calendar['start_date'].astype(int) <= today_str_int) &
+            (calendar['end_date'].astype(int) >= today_str_int)
+        )
+    elif service_type_name == 'sunday':
+        # Services that operate on Sunday (may also run Saturday, but NOT weekdays)
+        mask = (
+            (calendar['monday'].astype(int) == 0) &
+            (calendar['tuesday'].astype(int) == 0) &
+            (calendar['wednesday'].astype(int) == 0) &
+            (calendar['thursday'].astype(int) == 0) &
+            (calendar['friday'].astype(int) == 0) &
+            (calendar['sunday'].astype(int) == 1) &
+            (calendar['start_date'].astype(int) <= today_str_int) &
+            (calendar['end_date'].astype(int) >= today_str_int)
+        )
+    else:
+        return []
+
     return calendar[mask]['service_id'].tolist()
 
 # Get all available route IDs
