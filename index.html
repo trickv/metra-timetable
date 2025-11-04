@@ -154,6 +154,12 @@
 <div class="header-container">
     <h2>Metra Train Departures</h2>
     <div>
+        <label for="scheduleTypeSelect">Schedule:</label>
+        <select id="scheduleTypeSelect">
+            <option value="weekday">Weekday</option>
+            <option value="saturday">Saturday</option>
+            <option value="sunday">Sunday/Holiday</option>
+        </select>
         <label for="lineSelect">Select train line:</label>
         <select id="lineSelect"></select>
         <label for="stationSelect">Select station:</label>
@@ -190,41 +196,63 @@
 <script>
     let data;
     let routesData;
+    const scheduleTypeSelect = document.getElementById("scheduleTypeSelect");
     const lineSelect = document.getElementById("lineSelect");
     const stationSelect = document.getElementById("stationSelect");
     const table = document.getElementById("scheduleTable").querySelector("tbody");
 
     let metadata = null;
 
+    function getCurrentScheduleType() {
+        // Auto-detect current schedule type based on day of week
+        const dayOfWeek = new Date().getDay(); // 0 = Sunday, 6 = Saturday
+        if (dayOfWeek === 0) return 'sunday';
+        if (dayOfWeek === 6) return 'saturday';
+        return 'weekday';
+    }
+
+    function isViewingCurrentSchedule() {
+        // Check if the selected schedule matches today's schedule
+        return scheduleTypeSelect.value === getCurrentScheduleType();
+    }
+
     function loadData() {
+        const scheduleType = scheduleTypeSelect.value;
+        const scheduleFile = `metra_all_schedule_data_${scheduleType}.json`;
+
         Promise.all([
-            fetch("metra_all_schedule_data.json").then(resp => resp.json()),
+            fetch(scheduleFile).then(resp => resp.json()),
             fetch("metra_routes.json").then(resp => resp.json()),
             fetch("metra_metadata.json").then(resp => resp.json()).catch(() => null)
         ]).then(([scheduleData, routes, meta]) => {
             data = scheduleData;
             routesData = routes;
             metadata = meta;
-            
-            // Populate line selector
-            routes.forEach(route => {
-                const opt = document.createElement("option");
-                opt.value = route.route_id;
-                opt.textContent = `${route.route_short_name} - ${route.route_long_name}`;
-                opt.style.backgroundColor = `#${route.route_color}`;
-                lineSelect.appendChild(opt);
-            });
-            
-            // Set default to UP-W or first available
-            const savedLine = localStorage.getItem("metra_line");
-            if (savedLine && routes.find(r => r.route_id === savedLine)) {
-                lineSelect.value = savedLine;
-            } else {
-                lineSelect.value = routes.find(r => r.route_id === "UP-W")?.route_id || routes[0].route_id;
+
+            // Only populate line selector if it's empty (first load)
+            if (lineSelect.options.length === 0) {
+                routes.forEach(route => {
+                    const opt = document.createElement("option");
+                    opt.value = route.route_id;
+                    opt.textContent = `${route.route_short_name} - ${route.route_long_name}`;
+                    opt.style.backgroundColor = `#${route.route_color}`;
+                    lineSelect.appendChild(opt);
+                });
+
+                // Set default to UP-W or first available
+                const savedLine = localStorage.getItem("metra_line");
+                if (savedLine && routes.find(r => r.route_id === savedLine)) {
+                    lineSelect.value = savedLine;
+                } else {
+                    lineSelect.value = routes.find(r => r.route_id === "UP-W")?.route_id || routes[0].route_id;
+                }
             }
-            
+
             updateStations();
             updateTable();
+        }).catch(error => {
+            console.error(`Error loading ${scheduleFile}:`, error);
+            alert(`Could not load ${scheduleType} schedule. The schedule may not be available.`);
         });
     }
 
@@ -348,14 +376,23 @@
     }
 
     function updateDepartedStatus() {
+        // Only gray out departed trains when viewing the current schedule
+        if (!isViewingCurrentSchedule()) {
+            // Remove all departed classes when viewing a different schedule
+            document.querySelectorAll("td[data-departure-time]").forEach(function(cell) {
+                cell.classList.remove("departed");
+            });
+            return;
+        }
+
         const now = new Date();
         const currentTime = now.getHours() * 60 + now.getMinutes();
-        
+
         document.querySelectorAll("td[data-departure-time]").forEach(function(cell) {
             const departureTimeStr = cell.getAttribute("data-departure-time");
             const [hours, minutes] = departureTimeStr.split(':').map(Number);
             const departureTime = hours * 60 + minutes;
-            
+
             if (currentTime > departureTime) {
                 cell.classList.add("departed");
             } else {
@@ -366,16 +403,25 @@
 
     function updateCountdown() {
         const countdownEl = document.getElementById("countdown");
+
+        // Only show countdown when viewing the current schedule
+        if (!isViewingCurrentSchedule()) {
+            const scheduleTypeText = scheduleTypeSelect.options[scheduleTypeSelect.selectedIndex].text;
+            countdownEl.textContent = `Viewing ${scheduleTypeText} schedule`;
+            countdownEl.className = "";
+            return;
+        }
+
         const now = new Date();
         const currentTime = now.getHours() * 60 + now.getMinutes() + (now.getSeconds() / 60);
-        
+
         // Find all non-departed trains and get their departure times
         const futureDepartures = [];
         document.querySelectorAll("td[data-departure-time]:not(.departed)").forEach(function(cell) {
             const departureTimeStr = cell.getAttribute("data-departure-time");
             const [hours, minutes] = departureTimeStr.split(':').map(Number);
             const departureTime = hours * 60 + minutes;
-            
+
             if (departureTime > currentTime) {
                 futureDepartures.push({
                     time: departureTime,
@@ -383,13 +429,13 @@
                 });
             }
         });
-        
+
         if (futureDepartures.length === 0) {
             countdownEl.textContent = "No more departures today";
             countdownEl.className = "";
             return;
         }
-        
+
         // Find the next departure
         futureDepartures.sort((a, b) => a.time - b.time);
         const nextDeparture = futureDepartures[0];
@@ -397,7 +443,7 @@
         const totalSeconds = Math.floor(minutesUntil * 60);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
-        
+
         // Update styling based on urgency
         countdownEl.className = "";
         if (minutesUntil <= 2) {
@@ -405,7 +451,7 @@
         } else if (minutesUntil <= 5) {
             countdownEl.className = "urgent";
         }
-        
+
         if (minutes > 0) {
             countdownEl.textContent = `Next departure: ${nextDeparture.timeStr} (in ${minutes}m ${seconds}s)`;
         } else {
@@ -413,7 +459,25 @@
         }
     }
 
-    document.addEventListener("DOMContentLoaded", loadData);
+    document.addEventListener("DOMContentLoaded", () => {
+        // Set schedule type from localStorage or auto-detect based on day
+        const savedScheduleType = localStorage.getItem("metra_schedule_type");
+        if (savedScheduleType && ['weekday', 'saturday', 'sunday'].includes(savedScheduleType)) {
+            scheduleTypeSelect.value = savedScheduleType;
+        } else {
+            // Auto-detect based on current day
+            scheduleTypeSelect.value = getCurrentScheduleType();
+        }
+
+        loadData();
+    });
+
+    scheduleTypeSelect.addEventListener("change", () => {
+        // Save preference to localStorage
+        localStorage.setItem("metra_schedule_type", scheduleTypeSelect.value);
+        loadData();
+    });
+
     lineSelect.addEventListener("change", () => {
         updateStations();
         updateTable();
