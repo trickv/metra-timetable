@@ -64,15 +64,14 @@ def get_service_ids(calendar_df, service_type):
             (calendar_df['end_date'].astype(int) >= int(today_str))
         ]['service_id'].tolist()
     elif service_type == 'saturday':
-        # Saturday services: Saturday = 1, Sunday = 0
+        # Saturday services: Any service that runs on Saturday
         services = calendar_df[
             (calendar_df['saturday'].astype(int) == 1) &
-            (calendar_df['sunday'].astype(int) == 0) &
             (calendar_df['start_date'].astype(int) <= int(today_str)) &
             (calendar_df['end_date'].astype(int) >= int(today_str))
         ]['service_id'].tolist()
     elif service_type == 'sunday':
-        # Sunday/Holiday services: Sunday = 1
+        # Sunday services: Any service that runs on Sunday
         services = calendar_df[
             (calendar_df['sunday'].astype(int) == 1) &
             (calendar_df['start_date'].astype(int) <= int(today_str)) &
