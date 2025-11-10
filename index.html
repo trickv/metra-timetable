@@ -329,12 +329,26 @@
         localStorage.setItem(`metra_station_${selectedLine}`, station);
         
         table.innerHTML = "";
-        const filtered = data.filter(d => 
-            d.route_id === selectedLine && 
-            d.direction == dir && 
+        const filtered = data.filter(d =>
+            d.route_id === selectedLine &&
+            d.direction == dir &&
             ((dir == "1" && d.from == station) || (dir == "0" && d.to == station))
         );
-        
+
+        // Sort by departure time (handle times >= 24:00 for overnight trains)
+        filtered.sort((a, b) => {
+            const timeA = a.time.split(' -> ')[0];
+            const timeB = b.time.split(' -> ')[0];
+            const [hoursA, minutesA] = timeA.split(':').map(Number);
+            const [hoursB, minutesB] = timeB.split(':').map(Number);
+
+            // Convert to minutes for comparison
+            const totalMinutesA = hoursA * 60 + minutesA;
+            const totalMinutesB = hoursB * 60 + minutesB;
+
+            return totalMinutesA - totalMinutesB;
+        });
+
         filtered.forEach(entry => {
             const row = document.createElement("tr");
             const cell = document.createElement("td");
@@ -386,7 +400,13 @@
         }
 
         const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes();
+        let currentTime = now.getHours() * 60 + now.getMinutes();
+
+        // Handle overnight service: if it's early morning (before 3am), add 24 hours
+        // This allows comparison with GTFS times like 24:40 (which is 00:40 next day)
+        if (now.getHours() < 3) {
+            currentTime += 24 * 60;
+        }
 
         document.querySelectorAll("td[data-departure-time]").forEach(function(cell) {
             const departureTimeStr = cell.getAttribute("data-departure-time");
@@ -413,7 +433,13 @@
         }
 
         const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes() + (now.getSeconds() / 60);
+        let currentTime = now.getHours() * 60 + now.getMinutes() + (now.getSeconds() / 60);
+
+        // Handle overnight service: if it's early morning (before 3am), add 24 hours
+        // This allows comparison with GTFS times like 24:40 (which is 00:40 next day)
+        if (now.getHours() < 3) {
+            currentTime += 24 * 60;
+        }
 
         // Find all non-departed trains and get their departure times
         const futureDepartures = [];
